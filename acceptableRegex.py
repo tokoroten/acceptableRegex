@@ -8,8 +8,9 @@ wordSet = set(word)
 printableASCII = """ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,!@#$%^&*()-_=+\|`~[]{};:'",.<>/?1234567890 """
 printableASCIISet = set(printableASCII)
 
-def getAcceptableRegex(text, isDebug = False):
-    def printTree(item, isAll = False):
+def getAcceptableRegex(text, isDebug = False, ):
+    subpattern = {}
+    def walkTree(item, isAll = False):
         outString = ""
 
         for node in item:
@@ -29,26 +30,33 @@ def getAcceptableRegex(text, isDebug = False):
             if status == 'subpattern':      #() の処理
                 patternNum = right[0]
                 next = right[1]
-                outString += printTree(next)
+                text = walkTree(next)
+                subpattern[patternNum] = text
+                outString += text
+
+            if status == sre_parse.GROUPREF:    #groupの参照
+                if right in subpattern:
+                    outString += subpattern[right]
+
 
             if status == sre_parse.BRANCH:  # | の分岐
                 #print right
                 next = random.choice(right[1])
-                outString += printTree(next)
+                outString += walkTree(next)
 
 
             if status == sre_parse.IN:  # []
                 if right[0][0] == sre_parse.NEGATE: #[^hoge]
-                    disallowedSet = set(printTree(right, True))
+                    disallowedSet = set(walkTree(right, True))
                     allowedList = list(printableASCIISet - disallowedSet)
                     outString += random.choice(allowedList)
 
                 else:   #[hoge]
                     next = right
                     if isAll:
-                        outString += printTree(next)
+                        outString += walkTree(next)
                     else:
-                        outString += printTree([random.choice(next)])
+                        outString += walkTree([random.choice(next)])
 
             if status == sre_parse.RANGE:
                 if isAll:
@@ -62,7 +70,7 @@ def getAcceptableRegex(text, isDebug = False):
                 maximum = min(right[1] , limit)
                 next = right[2]
                 for i in xrange(random.randrange(minimum, maximum + 1)):
-                    outString += printTree(next)
+                    outString += walkTree(next)
 
             if status == sre_parse.CATEGORY:    # \dとか
                 categorySet = set()
@@ -90,22 +98,23 @@ def getAcceptableRegex(text, isDebug = False):
     if isDebug:
         print regexTree
 
-    return printTree(regexTree)
+    return walkTree(regexTree)
 
 if __name__ == "__main__":
     print getAcceptableRegex("(hoge|fooo|fuga|buzz)")
     print getAcceptableRegex("(fug+a{4,10})")
     print getAcceptableRegex("\d+")
     print getAcceptableRegex("[abc]+ , [\d]+ , [\w]+ , [\W]+ , [^abcdefg]+ , [a-z]+")
+    print getAcceptableRegex(r"(hoge(foo))(fuga) \1,\2,\3")
 
     # mobile phone(japan)
-    print getAcceptableRegex("^0(80-(7([0-3]\d|4[0-8])|9(1[0-4]|0[0-6])|[1-68]\d\d)|90-[1-9]\d\d)\d{5}$")
+    print getAcceptableRegex(r"^0(80-(7([0-3]\d|4[0-8])|9(1[0-4]|0[0-6])|[1-68]\d\d)|90-[1-9]\d\d)\d{5}$")
 
     # email (short)
-    print getAcceptableRegex("[\d\w.]+@(([-a-z0-9]+\.)*[a-z]+|\[\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\])")
+    print getAcceptableRegex(r"[\d\w.]+@(([-a-z0-9]+\.)*[a-z]+|\[\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\])")
 
     # url http://www.din.or.jp/~ohzaki/perl.htm#httpURL
-    url = getAcceptableRegex("""https//(([-_.!~*'()a-zA-Z0-9;:&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*@)?(([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)*[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.?|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(:[0-9]*)?(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*)*)?(\?([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?(#([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?""")
+    url = getAcceptableRegex("""https?//(([-_.!~*'()a-zA-Z0-9;:&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*@)?(([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)*[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.?|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(:[0-9]*)?(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*)*)?(\?([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?(#([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?""")
     print url
 
     #try to parse
