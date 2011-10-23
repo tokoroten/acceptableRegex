@@ -17,21 +17,31 @@ def getAcceptableRegex(text, isDebug = False, ):
             status = node[0]
             right = node[1]
 
-            if status == sre_parse.NOT_LITERAL:
+            if status == sre_parse.NOT_LITERAL: # [^hoge]
                 while True:
                     t = random.choice(printableASCII)
                     if t != chr(right):
                         break
                 outString += t
 
+            if status == sre_parse.ANY: # .
+                if isAll:
+                    outString += printableASCII
+                else:
+                    outString += random.choice(printableASCII)
+
             if status == sre_parse.LITERAL: #文字列リテラル
                 outString += chr(right)
 
-            if status == 'subpattern':      #() の処理
-                patternNum = right[0]
+            if status == sre_parse.SUBPATTERN:      #() の処理
+                patternNum = right[0]   #(:?hoge) はNone
                 next = right[1]
-                text = walkTree(next)
-                subpattern[patternNum] = text
+                if patternNum and patternNum in subpattern:
+                    text = subpattern[patternNum]
+                else:
+                    text = walkTree(next)
+                    subpattern[patternNum] = text
+
                 outString += text
 
             if status == sre_parse.GROUPREF:    #groupの参照
@@ -74,17 +84,17 @@ def getAcceptableRegex(text, isDebug = False, ):
 
             if status == sre_parse.CATEGORY:    # \dとか
                 categorySet = set()
-                if right == sre_parse.CATEGORY_DIGIT:
+                if right == sre_parse.CATEGORY_DIGIT:   # \d
                     categorySet = sre_parse.DIGITS
-                elif right == sre_parse.CATEGORY_NOT_DIGIT:
+                elif right == sre_parse.CATEGORY_NOT_DIGIT: # \D
                     categorySet = printableASCIISet - sre_parse.DIGITS
-                elif right == sre_parse.CATEGORY_SPACE:
+                elif right == sre_parse.CATEGORY_SPACE: # \s
                     categorySet = sre_parse.WHITESPACE
-                elif right == sre_parse.CATEGORY_NOT_SPACE:
+                elif right == sre_parse.CATEGORY_NOT_SPACE: # \S
                     categorySet = printableASCIISet - sre_parse.WHITESPACE
-                elif right == sre_parse.CATEGORY_WORD:
+                elif right == sre_parse.CATEGORY_WORD: # \w
                     categorySet = wordSet
-                elif right == sre_parse.CATEGORY_NOT_WORD:
+                elif right == sre_parse.CATEGORY_NOT_WORD: # \W
                     categorySet = printableASCIISet - wordSet
 
                 if isAll:
@@ -102,10 +112,12 @@ def getAcceptableRegex(text, isDebug = False, ):
 
 if __name__ == "__main__":
     print getAcceptableRegex("(hoge|fooo|fuga|buzz)")
-    print getAcceptableRegex("(fug+a{4,10})")
+    print getAcceptableRegex("(fug+a{4,10})+")
     print getAcceptableRegex("\d+")
     print getAcceptableRegex("[abc]+ , [\d]+ , [\w]+ , [\W]+ , [^abcdefg]+ , [a-z]+")
     print getAcceptableRegex(r"(hoge(foo))(fuga) \1,\2,\3")
+    print getAcceptableRegex(r"(\w+(\d+))(\W+) \1,\2,\3")
+    print getAcceptableRegex(r"(.+), \1")
 
     # mobile phone(japan)
     print getAcceptableRegex(r"^0(80-(7([0-3]\d|4[0-8])|9(1[0-4]|0[0-6])|[1-68]\d\d)|90-[1-9]\d\d)\d{5}$")
@@ -113,13 +125,23 @@ if __name__ == "__main__":
     # email (short)
     print getAcceptableRegex(r"[\d\w.]+@(([-a-z0-9]+\.)*[a-z]+|\[\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\])")
 
+
     # url http://www.din.or.jp/~ohzaki/perl.htm#httpURL
-    url = getAcceptableRegex("""https?//(([-_.!~*'()a-zA-Z0-9;:&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*@)?(([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)*[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.?|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)(:[0-9]*)?(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*(/([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*(;([-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*)*)?(\?([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?(#([-_.!~*'()a-zA-Z0-9;/@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)?""")
+    url = getAcceptableRegex("""
+(?:https?|shttp)://(?:(?:[-_.!~*'()a-zA-Z0-9;:&=+$,]|%[0-9A-Fa-f
+][0-9A-Fa-f])*@)?(?:(?:[a-zA-Z0-9](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?\.)
+*[a-zA-Z](?:[-a-zA-Z0-9]*[a-zA-Z0-9])?\.?|[0-9]+\.[0-9]+\.[0-9]+\.
+[0-9]+)(?::[0-9]*)?(?:/(?:[-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f]
+[0-9A-Fa-f])*(?:;(?:[-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-
+Fa-f])*)*(?:/(?:[-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f
+])*(?:;(?:[-_.!~*'()a-zA-Z0-9:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*)*)
+*)?(?:\?(?:[-_.!~*'()a-zA-Z0-9;/?:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])
+*)?(?:#(?:[-_.!~*'()a-zA-Z0-9;/?:@&=+$,]|%[0-9A-Fa-f][0-9A-Fa-f])*
+)?
+""".replace("\n",""))
     print url
 
     #try to parse
     import urlparse
     print urlparse.urlparse(url)
-
-
 
